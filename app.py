@@ -18,19 +18,21 @@ st.write("対象（顔・衣装）と処理方法（切り出し・黒塗り）�
 def load_models():
     xml_filename = "haarcascade_frontalface_default.xml"
     
-    # ローカルに存在しない場合は公式GitHubから直接取得
-    if not os.path.exists(xml_filename) or os.path.getsize(xml_filename) == 0:
-        url = "https://raw.githubusercontent.com/opencv/opencv/master/data/haarcascades/haarcascade_frontalface_default.xml"
-        urllib.request.urlretrieve(url, xml_filename)
-        
-    face_cascade = cv2.CascadeClassifier(xml_filename)
-    
-    # 万が一読み込み失敗時のフォールバック
-    if face_cascade.empty():
-        url = "https://raw.githubusercontent.com/opencv/opencv/master/data/haarcascades/haarcascade_frontalface_default.xml"
-        urllib.request.urlretrieve(url, xml_filename)
-        face_cascade = cv2.CascadeClassifier(xml_filename)
+    # 1. OpenCV内蔵パスの検索
+    cascade_path = ""
+    if hasattr(cv2, 'data') and hasattr(cv2.data, 'haarcascades'):
+        candidate = os.path.join(cv2.data.haarcascades, xml_filename)
+        if os.path.exists(candidate):
+            cascade_path = candidate
+            
+    # 2. 内蔵パスがない場合はローカルまたは自動ダウンロード
+    if not cascade_path:
+        if not os.path.exists(xml_filename) or os.path.getsize(xml_filename) == 0:
+            url = "https://raw.githubusercontent.com/opencv/opencv/master/data/haarcascades/haarcascade_frontalface_default.xml"
+            urllib.request.urlretrieve(url, xml_filename)
+        cascade_path = xml_filename
 
+    face_cascade = cv2.CascadeClassifier(cascade_path)
     yolo_model = YOLO("yolov8n.pt")
     return face_cascade, yolo_model
 
