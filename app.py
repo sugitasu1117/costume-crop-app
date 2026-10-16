@@ -5,7 +5,7 @@ from PIL import Image
 import io
 import zipfile
 import os
-import urllib.request
+import requests
 from ultralytics import YOLO
 
 st.set_page_config(page_title="画像領域処理アプリ", layout="wide")
@@ -19,14 +19,19 @@ def load_models():
     # 1. 人物/全身検出用 (yolov8n.pt は ultralytics が自動取得)
     person_model = YOLO("yolov8n.pt")
     
-    # 2. 顔検出用 (yolov8n-face.pt を Hugging Face から安全にローカル取得)
+    # 2. 顔検出用 (yolov8n-face.pt を requests で安全にストリーミング取得)
     face_model_path = "yolov8n-face.pt"
     if not os.path.exists(face_model_path) or os.path.getsize(face_model_path) == 0:
         url = "https://huggingface.co/Bingsu/aDetailer/resolve/main/yolov8n-face.pt"
-        # ユーザーエージェントを設定してダウンロードの拒否を回避
-        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req) as response, open(face_model_path, 'wb') as out_file:
-            out_file.write(response.read())
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        }
+        res = requests.get(url, headers=headers, allow_redirects=True, stream=True)
+        res.raise_for_status()
+        with open(face_model_path, "wb") as f:
+            for chunk in res.iter_content(chunk_size=8192):
+                if chunk:
+                    f.write(chunk)
             
     face_model = YOLO(face_model_path)
     return person_model, face_model
