@@ -4,8 +4,6 @@ import numpy as np
 from PIL import Image
 import io
 import zipfile
-import os
-import urllib.request
 from ultralytics import YOLO
 
 st.set_page_config(page_title="画像領域処理アプリ", layout="wide")
@@ -13,30 +11,16 @@ st.set_page_config(page_title="画像領域処理アプリ", layout="wide")
 st.title("✂️ 画像領域処理（抽出 / 黒塗り）アプリ")
 st.write("対象（顔・衣装）と処理方法（切り出し・黒塗り）を選択して画像をアップロードしてください。")
 
-# モデル・検出器の読み込み（キャッシュ化して高速化）
+# YOLOv8モデルの読み込み（顔検出用と人物/衣装用）
 @st.cache_resource
 def load_models():
-    xml_filename = "haarcascade_frontalface_default.xml"
-    
-    # 1. OpenCV内蔵パスの検索
-    cascade_path = ""
-    if hasattr(cv2, 'data') and hasattr(cv2.data, 'haarcascades'):
-        candidate = os.path.join(cv2.data.haarcascades, xml_filename)
-        if os.path.exists(candidate):
-            cascade_path = candidate
-            
-    # 2. 内蔵パスがない場合はローカルまたは自動ダウンロード
-    if not cascade_path:
-        if not os.path.exists(xml_filename) or os.path.getsize(xml_filename) == 0:
-            url = "https://raw.githubusercontent.com/opencv/opencv/master/data/haarcascades/haarcascade_frontalface_default.xml"
-            urllib.request.urlretrieve(url, xml_filename)
-        cascade_path = xml_filename
+    # 人物/全身検出用 (COCOモデル: class 0 = person)
+    person_model = YOLO("yolov8n.pt")
+    # 顔検出用 (YOLOv8-face 軽量モデル)
+    face_model = YOLO("https://github.com/scardine/image_cropper/releases/download/v0.1/yolov8n-face.pt")
+    return person_model, face_model
 
-    face_cascade = cv2.CascadeClassifier(cascade_path)
-    yolo_model = YOLO("yolov8n.pt")
-    return face_cascade, yolo_model
-
-face_cascade, yolo_model = load_models()
+person_model, face_model = load_models()
 
 # サイドバーで機能選択
 st.sidebar.header("⚙️ 設定")
@@ -49,13 +33,13 @@ def detect_regions(img_np, target):
     """選択された対象の座標バウンディングボックス (x, y, w, h) リストを返す"""
     boxes = []
     if "顔" in target:
-        gray = cv2.cvtColor(img_np, cv2.COLOR_RGB2GRAY)
-        faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
-        for (x, y, w, h) in faces:
-            boxes.append((x, y, w, h))
+        results = face_model(img_np, verbose=False)
+        for r in results:
+            for box in r.boxes:
+                x1, y1, x2, y2 = map(int, box.xyxy[0])
+                boxes.append((x1, y1, x2 - x1, y2 - y1))
     else:
-        # YOLOv8で人物(class 0)を検出
-        results = yolo_model(img_np, verbose=False)
+        results = person_model(img_np, verbose=False)
         for r in results:
             for box in r.boxes:
                 if int(box.cls[0]) == 0:  # 0: person
