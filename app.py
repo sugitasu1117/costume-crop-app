@@ -4,6 +4,8 @@ import numpy as np
 from PIL import Image
 import io
 import zipfile
+import os
+import urllib.request
 from ultralytics import YOLO
 
 st.set_page_config(page_title="画像領域処理アプリ", layout="wide")
@@ -11,13 +13,22 @@ st.set_page_config(page_title="画像領域処理アプリ", layout="wide")
 st.title("✂️ 画像領域処理（抽出 / 黒塗り）アプリ")
 st.write("対象（顔・衣装）と処理方法（切り出し・黒塗り）を選択して画像をアップロードしてください。")
 
-# YOLOv8モデルの読み込み（顔検出用と人物/衣装用）
+# モデル・検出器の読み込み（キャッシュ化して高速化）
 @st.cache_resource
 def load_models():
-    # 人物/全身検出用 (COCOモデル: class 0 = person)
+    # 1. 人物/全身検出用 (yolov8n.pt は ultralytics が自動取得)
     person_model = YOLO("yolov8n.pt")
-    # 顔検出用 (YOLOv8-face 軽量モデル)
-    face_model = YOLO("https://github.com/scardine/image_cropper/releases/download/v0.1/yolov8n-face.pt")
+    
+    # 2. 顔検出用 (yolov8n-face.pt を Hugging Face から安全にローカル取得)
+    face_model_path = "yolov8n-face.pt"
+    if not os.path.exists(face_model_path) or os.path.getsize(face_model_path) == 0:
+        url = "https://huggingface.co/Bingsu/aDetailer/resolve/main/yolov8n-face.pt"
+        # ユーザーエージェントを設定してダウンロードの拒否を回避
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req) as response, open(face_model_path, 'wb') as out_file:
+            out_file.write(response.read())
+            
+    face_model = YOLO(face_model_path)
     return person_model, face_model
 
 person_model, face_model = load_models()
