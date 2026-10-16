@@ -15,12 +15,16 @@ st.write("対象（顔・衣装）と処理方法（切り出し・黒塗り）�
 # モデル・検出器の読み込み（キャッシュ化して高速化）
 @st.cache_resource
 def load_models():
-    # ローカルリポジトリ内の xml ファイルを参照（安全なフォールバック付き）
-    xml_path = "haarcascade_frontalface.xml"
-    if not os.path.exists(xml_path):
-        xml_path = "haarcascade_frontalface_default.xml"
+    xml_filename = "haarcascade_frontalface.xml"
+    
+    # 手元にない場合は自動でダウンロードしてフォールバック
+    if not os.path.exists(xml_filename):
+        xml_filename = "haarcascade_frontalface_default.xml"
+        if not os.path.exists(xml_filename):
+            url = "https://raw.githubusercontent.com/opencv/opencv/master/data/haarcascades/haarcascade_frontalface_default.xml"
+            urllib.request.urlretrieve(url, xml_filename)
         
-    face_cascade = cv2.CascadeClassifier(xml_path)
+    face_cascade = cv2.CascadeClassifier(xml_filename)
     yolo_model = YOLO("yolov8n.pt")
     return face_cascade, yolo_model
 
