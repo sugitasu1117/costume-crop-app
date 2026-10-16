@@ -5,6 +5,7 @@ from PIL import Image
 import io
 import zipfile
 import os
+import urllib.request
 from ultralytics import YOLO
 
 st.set_page_config(page_title="画像領域処理アプリ", layout="wide")
@@ -15,16 +16,21 @@ st.write("対象（顔・衣装）と処理方法（切り出し・黒塗り）�
 # モデル・検出器の読み込み（キャッシュ化して高速化）
 @st.cache_resource
 def load_models():
-    xml_filename = "haarcascade_frontalface.xml"
+    xml_filename = "haarcascade_frontalface_default.xml"
     
-    # 手元にない場合は自動でダウンロードしてフォールバック
-    if not os.path.exists(xml_filename):
-        xml_filename = "haarcascade_frontalface_default.xml"
-        if not os.path.exists(xml_filename):
-            url = "https://raw.githubusercontent.com/opencv/opencv/master/data/haarcascades/haarcascade_frontalface_default.xml"
-            urllib.request.urlretrieve(url, xml_filename)
+    # ローカルに存在しない場合は公式GitHubから直接取得
+    if not os.path.exists(xml_filename) or os.path.getsize(xml_filename) == 0:
+        url = "https://raw.githubusercontent.com/opencv/opencv/master/data/haarcascades/haarcascade_frontalface_default.xml"
+        urllib.request.urlretrieve(url, xml_filename)
         
     face_cascade = cv2.CascadeClassifier(xml_filename)
+    
+    # 万が一読み込み失敗時のフォールバック
+    if face_cascade.empty():
+        url = "https://raw.githubusercontent.com/opencv/opencv/master/data/haarcascades/haarcascade_frontalface_default.xml"
+        urllib.request.urlretrieve(url, xml_filename)
+        face_cascade = cv2.CascadeClassifier(xml_filename)
+
     yolo_model = YOLO("yolov8n.pt")
     return face_cascade, yolo_model
 
